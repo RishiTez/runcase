@@ -1,26 +1,6 @@
 # Runcase
 
-A local CLI tool for DSA practice. Define your test cases once, run them every time — no more retyping inputs.
-
----
-
-## The Problem
-
-Every time you tweak a solution, you retype the same inputs. Runcase stores your test cases in a local database per problem, runs your code against all of them at once, and shows you exactly where your output diverges from what you expected.
-
----
-
-## Features
-
-- Scaffold a new problem with a single command
-- Add test cases interactively (stdin/stdout or function args + expected return)
-- Run your solution against all saved test cases in one shot
-- Diff expected vs actual output per test case
-- Track pass/fail history across attempts
-- Supports Python, C++, and Java
-- TLE and SLE support for sufficiently large testcases
-- Agents like Claude Code should be able to add testecases on command
-- Beautiful Terminal UI
+A local CLI tool for DSA practice. Define your test cases once, run them every time.
 
 ---
 
@@ -32,72 +12,116 @@ cd runcase
 pip install -e .
 ```
 
----
-
-## Usage
-
-### Scaffold a new problem
-
-```bash
-runcase new two-sum
-```
-
-Creates an entry in the local database for the problem `two-sum` and scaffolds a solution file in your working directory.
-
-### Add a test case
-
-```bash
-runcase add two-sum
-```
-
-Prompts you interactively to enter input and expected output. Both stdin/stdout and function-call styles are supported. Test cases are persisted to the local store.
-
-### Run your solution
-
-```bash
-runcase run two-sum solution.py
-```
-
-Executes your solution against all saved test cases for `two-sum`. Outputs a per-case pass/fail result with a diff on failure.
-
-### View run history
-
-```bash
-runcase history two-sum
-```
-
-Lists all past runs for a problem with timestamps and pass/fail counts.
+Requires Python 3. Language runners (`python3`, `g++`, `javac`/`java`) must be on PATH.
 
 ---
 
-## Test Case Modes
+## Commands
 
-**stdin/stdout** — input is fed via stdin, output is compared against expected stdout.
+```bash
+runcase new <problem>                                  # Scaffold a problem entry and solution file
+runcase add <problem> --input "..." --expected "..."   # Add a test case non-interactively
+runcase run <problem> <file>                           # Run solution against all saved test cases
+runcase history <problem>                              # View past run history
+```
 
-**function call** — you define argument values and an expected return value. Runcase wraps your function and compares the return.
+Problem names must match `^[a-z0-9][a-z0-9-]*[a-z0-9]$` (lowercase, hyphens, minimum 2 characters).
 
 ---
 
-## Storage
+## Agent Usage (Claude Code)
 
-All problems and test cases are stored in a local SQLite database at `~/.runcase/db.sqlite`. Nothing leaves your machine.
+Claude Code can add test cases and run solutions programmatically. No interactive prompts are needed.
+
+### Step 1 — Scaffold the problem (first time only)
+
+```bash
+runcase new <problem>
+```
+
+When prompted:
+- Mode: `stdio` (for stdin/stdout problems) or `function` (for function-call problems)
+- Language: `python`, `cpp`, or `java`
+
+If the problem already exists in the database, skip this step.
+
+### Step 2 — Add test cases
+
+Use the `--input` and `--expected` flags. This bypasses all interactive prompts and is safe to call from scripts or agents.
+
+**stdio mode** — input is what goes to stdin, expected is what should appear on stdout:
+
+```bash
+runcase add two-sum --input "4\n[2,7,11,15]\n9" --expected "[0,1]"
+runcase add two-sum --input "3\n[3,2,4]\n6" --expected "[1,2]"
+```
+
+**function mode** — input is a JSON array of arguments, expected is the JSON-encoded return value:
+
+```bash
+runcase add two-sum --input '[2, 7, 11, 15]' --expected '[0, 1]'
+runcase add two-sum --input '[3, 2, 4]' --expected '[1, 2]'
+```
+
+An optional `--label` flag names the test case for display:
+
+```bash
+runcase add two-sum --input "..." --expected "..." --label "basic case"
+```
+
+### Step 3 — Run the solution
+
+```bash
+runcase run <problem> <file>
+```
+
+Examples:
+
+```bash
+runcase run two-sum two-sum.py
+runcase run two-sum two-sum.cpp
+runcase run two-sum TwoSum.java
+```
+
+Runcase detects the language from the file extension. Output shows per-case pass/fail with diffs on failure.
 
 ---
 
-## Project Structure
+## Test Case Formats
+
+### stdio mode
+
+`--input` is the exact string fed to stdin. Use `\n` for newlines. `--expected` is the exact stdout the solution must produce.
+
+Example for a problem that reads `n` then an array then a target:
 
 ```
-runcase/
-├── runcase/
-│   ├── __init__.py
-│   ├── cli.py          # Entry point, Click command definitions
-│   ├── runner.py       # Code execution and diff logic
-│   ├── store.py        # SQLite database interface
-│   └── scaffold.py     # Problem and solution file scaffolding
-├── tests/
-├── pyproject.toml
-└── README.md
+Input:
+4
+2 7 11 15
+9
+
+Expected output:
+0 1
 ```
+
+As a CLI call:
+
+```bash
+runcase add two-sum --input $'4\n2 7 11 15\n9' --expected "0 1"
+```
+
+### function mode
+
+`--input` is a JSON array of positional arguments passed to the function. `--expected` is the JSON-encoded return value.
+
+For `def twoSum(nums: List[int], target: int) -> List[int]`:
+
+```bash
+runcase add two-sum --input '[[2,7,11,15], 9]' --expected '[0,1]'
+```
+
+Supported argument types: `int`, `double`, `string`, `List[int]`, `List[List[int]]`.
 
 ---
 
@@ -106,23 +130,30 @@ runcase/
 | Language | Extension | Execution         |
 |----------|-----------|-------------------|
 | Python   | `.py`     | `python3`         |
-| C++      | `.cpp`    | `g++` then binary |
+| C++      | `.cpp`    | `g++ -std=c++17 -O2` then binary |
 | Java     | `.java`   | `javac` + `java`  |
 
 ---
 
-## Roadmap
+## Storage
 
-- [ ] `runcase edit` — modify or delete existing test cases
-- [ ] `runcase export` — export problem + test cases to JSON
-- [ ] Time and memory tracking per run
-- [ ] Shell completions (bash/zsh/fish)
+All data is stored locally at `~/.runcase/db.sqlite`. Nothing leaves your machine.
 
 ---
 
-## Contributing
+## Project Structure
 
-This tool was built for personal DSA practice but is open to contributions. Open an issue or a PR — feedback on the CLI UX especially welcome.
+```
+runcase/
+├── runcase/
+│   ├── cli.py        # Click commands; entry points
+│   ├── runner.py     # Code execution and output diff
+│   ├── store.py      # SQLite interface
+│   └── scaffold.py   # Problem and file scaffolding
+├── tests/
+├── pyproject.toml
+└── README.md
+```
 
 ---
 

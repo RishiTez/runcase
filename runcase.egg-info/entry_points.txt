@@ -1,0 +1,2 @@
+[console_scripts]
+runcase = runcase.cli:main

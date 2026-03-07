@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: runcase
+Version: 0.1.0
+Summary: Local CLI tool for DSA practice with test case management
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: click>=8.0
+Requires-Dist: rich>=13.0
+Dynamic: license-file
